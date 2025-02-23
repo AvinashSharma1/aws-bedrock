@@ -3,5 +3,6 @@ awscli
 uuid
 pypdf
 langchain
+langchain-community
 streamlit
 faiss-cpu
