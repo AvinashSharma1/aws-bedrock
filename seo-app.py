@@ -3,12 +3,11 @@ import os
 import sys
 import boto3
 import streamlit as st
-import time
 
 ## We will be using Titan Emeddings Model to gerenate the embeddings for the given text
 
-from langchain_community.embeddings import BedrockEmbeddings
-from langchain_community.llms.bedrock import Bedrock
+from langchain_aws.embeddings import BedrockEmbeddings
+from langchain_aws.llms.bedrock import BedrockLLM 
 
 ## Data Ingestion
 
@@ -55,15 +54,23 @@ def get_vector_store(docs):
     #vector_store.add_embeddings(embeddings)
     vectorstore_faiss = FAISS.from_documents(docs, bedrock_embeddings)
     vectorstore_faiss.save_local("faiss_index")
-    
+
+# define gurdrail identifier ID
+guardrailIdentifier = "56beqsjxbw5f" 
+       
 def get_claude_llm():
+    model_kwargs = {
+        'max_tokens_to_sample': MAX_TOKENS,
+        'guardrailIdentifier': guardrailIdentifier
+    }
+
     ## Create Antropic Claude LLM
-    llm = Bedrock(model_id = "anthropic.claude-v2:1", client=bedrock, model_kwargs = {'max_tokens_to_sample': MAX_TOKENS})
+    llm = BedrockLLM(model_id = "anthropic.claude-v2:1", client=bedrock, model_kwargs = model_kwargs)
     return llm
 
 def get_llma3_llm():
     ## Create LLMA3  LLM
-    llm = Bedrock(model_id = "meta.llama3-70b-instruct-v1:0", client=bedrock, model_kwargs = {'max_gen_len': MAX_TOKENS})
+    llm = BedrockLLM(model_id = "meta.llama3-70b-instruct-v1:0", client=bedrock, model_kwargs = {'max_gen_len': MAX_TOKENS})
     return llm  
 
 
@@ -85,8 +92,8 @@ PROMPT = PromptTemplate(
     template=prompt_template, input_variables=["context", "question"]
 )
 #print(PROMPT)
-def get_response_llm(llm,vectorstore_faiss,query,response_placeholder):
-    qa = RetrievalQA.from_chain_type(
+def get_response_llm(llm,query):
+    """ qa = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
         retriever=vectorstore_faiss.as_retriever(
@@ -98,27 +105,30 @@ def get_response_llm(llm,vectorstore_faiss,query,response_placeholder):
     # Print the context and question values
     context = vectorstore_faiss.as_retriever().get_relevant_documents(query)[0].page_content
     print(f"Context variable =: {context}")
-    print(f"Question variable = : {query}")
+    print(f"Question variable = : {query}") """
+
+    response =  response = llm(prompt=query)
+    return response
+    # print(response)
+    # if 'text' in response:
+    #     return response['text']
+    # else:
+    #     return "No valid response from the model."
     
-    answer=qa({"query":query})
+    """ answer=qa({"query":query})
     if 'result' in answer:
-        result = answer['result']
-        if "I do not have enough context" in result or "I apologize" in result:
-            response_placeholder.write("The model could not find relevant information to answer your question.")
-        else:
-            # Simulate streaming by updating the response incrementally
-            for i in range(0, len(result), 50):
-                response_placeholder.write(result[:i+50])
-                time.sleep(0.1)  # Simulate delay
+        return answer['result']
     else:
-        response_placeholder.write("No valid response from the model.")
-
-def main():
-    st.set_page_config("Chat PDF")
+        return "No valid response from the model." """
     
-    st.header("Chat with PDF using AWS Bedrock💁")
+## main function
+    
+def main():
+    st.set_page_config("SEO GenAI Solution!")
+    
+    st.header("SEO Solution using AWS Bedrock💁")
 
-    user_question = st.text_input("Ask a Question from the PDF Files")
+    user_question = st.text_input("Ask SEO Description")
 
     with st.sidebar:
         st.title("Update Or Create Vector Store:")
@@ -132,20 +142,28 @@ def main():
                 else:
                     get_vector_store(docs)
                     st.success("Done")
-    response_placeholder = st.empty()
+
     if st.button("Claude Output"):
         with st.spinner("Processing..."):
-            faiss_index = FAISS.load_local("faiss_index", bedrock_embeddings, allow_dangerous_deserialization=True)
+            #faiss_index = FAISS.load_local("faiss_index", bedrock_embeddings, allow_dangerous_deserialization=True)
             llm=get_claude_llm()
-            get_response_llm(llm, faiss_index, user_question, response_placeholder)
+            response = get_response_llm(llm,user_question)
+            print(llm)
+            if response == "No valid response from the model.":
+                st.write("The model could not find relevant information in the documents to answer your question.")
+            else:
+                st.write(response)
             st.success("Done")
 
     if st.button("Llama2 Output"):
         with st.spinner("Processing..."):
-            faiss_index = FAISS.load_local("faiss_index", bedrock_embeddings, allow_dangerous_deserialization=True)
+            #faiss_index = FAISS.load_local("faiss_index", bedrock_embeddings, allow_dangerous_deserialization=True)
             llm=get_llma3_llm()
-            print(llm)
-            get_response_llm(llm, faiss_index, user_question,response_placeholder)
+            response = get_response_llm(llm,user_question)
+            if response == "No valid response from the model.":
+                st.write("The model could not find relevant information in the documents to answer your question.")
+            else:
+                st.write(response)
             st.success("Done")
 
 if __name__ == "__main__":
